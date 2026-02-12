@@ -9,7 +9,13 @@ interface CropSquareProps {
   onUpdate: (id: string, patch: Partial<Pick<CropSquareType, 'x' | 'y' | 'size'>>) => void;
   onRemove: (id: string) => void;
   isSelected: boolean;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, shiftKey: boolean) => void;
+  onDragStart?: () => void;
+  onDragDelta?: (dx: number, dy: number) => void;
+  onDragEnd?: () => void;
+  onResizeStart?: (corner: string) => void;
+  onResizeDelta?: (sizeDelta: number, corner: string) => void;
+  onResizeEnd?: () => void;
 }
 
 const CORNERS = ['nw', 'ne', 'sw', 'se'] as const;
@@ -21,12 +27,12 @@ const CORNER_CLASSES: Record<string, string> = {
   se: 'bottom-0 right-0 translate-x-1/2 translate-y-1/2 cursor-se-resize',
 };
 
-export function CropSquare({ square, bounds, snapTargets, onUpdate, onRemove, isSelected, onSelect }: CropSquareProps) {
+export function CropSquare({ square, bounds, snapTargets, onUpdate, onRemove, isSelected, onSelect, onDragStart, onDragDelta, onDragEnd, onResizeStart, onResizeDelta, onResizeEnd }: CropSquareProps) {
   const { dragHandlers, resizeHandlers } = useDragResize(
     { x: square.x, y: square.y, size: square.size },
     bounds,
     (patch) => onUpdate(square.id, patch),
-    snapTargets
+    { snapTargets, onDragStart, onDragDelta, onDragEnd, onResizeStart, onResizeDelta, onResizeEnd }
   );
 
   return (
@@ -40,7 +46,7 @@ export function CropSquare({ square, bounds, snapTargets, onUpdate, onRemove, is
       }}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => {
-        onSelect(square.id);
+        onSelect(square.id, e.shiftKey);
         dragHandlers.onPointerDown(e);
       }}
       onPointerMove={dragHandlers.onPointerMove}
@@ -83,7 +89,7 @@ export function CropSquare({ square, bounds, snapTargets, onUpdate, onRemove, is
         </svg>
       </button>
 
-      {/* Corner resize handles — L-shaped crop marks */}
+      {/* Corner resize handles */}
       {CORNERS.map((corner) => (
         <div
           key={corner}

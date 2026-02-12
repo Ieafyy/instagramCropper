@@ -17,6 +17,16 @@ export interface SnapTarget {
   size: number;
 }
 
+interface DragResizeOptions {
+  snapTargets?: SnapTarget[];
+  onDragStart?: () => void;
+  onDragDelta?: (dx: number, dy: number) => void;
+  onDragEnd?: () => void;
+  onResizeStart?: (corner: string) => void;
+  onResizeDelta?: (sizeDelta: number, corner: string) => void;
+  onResizeEnd?: () => void;
+}
+
 const MIN_SIZE = 50;
 const SNAP_THRESHOLD = 12;
 
@@ -37,10 +47,8 @@ function applySnap(x: number, y: number, size: number, targets: SnapTarget[]): {
     const tTop = t.y;
     const tBottom = t.y + t.size;
 
-    // Horizontal snaps: my left edge vs target edges
     const dLeftLeft = Math.abs(myLeft - tLeft);
     const dLeftRight = Math.abs(myLeft - tRight);
-    // Horizontal snaps: my right edge vs target edges
     const dRightLeft = Math.abs(myRight - tLeft);
     const dRightRight = Math.abs(myRight - tRight);
 
@@ -49,10 +57,8 @@ function applySnap(x: number, y: number, size: number, targets: SnapTarget[]): {
     if (dRightLeft < bestDx) { bestDx = dRightLeft; snappedX = tLeft - size; }
     if (dRightRight < bestDx) { bestDx = dRightRight; snappedX = tRight - size; }
 
-    // Vertical snaps: my top edge vs target edges
     const dTopTop = Math.abs(myTop - tTop);
     const dTopBottom = Math.abs(myTop - tBottom);
-    // Vertical snaps: my bottom edge vs target edges
     const dBottomTop = Math.abs(myBottom - tTop);
     const dBottomBottom = Math.abs(myBottom - tBottom);
 
@@ -72,8 +78,9 @@ export function useDragResize(
   position: Position,
   bounds: Bounds,
   onUpdate: (patch: Partial<Pick<Position, 'x' | 'y' | 'size'>>) => void,
-  snapTargets: SnapTarget[] = []
+  options: DragResizeOptions = {}
 ) {
+  const { snapTargets = [], onDragStart, onDragDelta, onDragEnd, onResizeStart, onResizeDelta, onResizeEnd } = options;
   const dragStart = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const resizeStart = useRef<{ startX: number; startY: number; origX: number; origY: number; origSize: number; corner: string } | null>(null);
 
@@ -88,8 +95,9 @@ export function useDragResize(
         origX: position.x,
         origY: position.y,
       };
+      onDragStart?.();
     },
-    [position.x, position.y]
+    [position.x, position.y, onDragStart]
   );
 
   const onDragPointerMove = useCallback(
@@ -100,21 +108,25 @@ export function useDragResize(
       let newX = Math.max(0, Math.min(bounds.maxWidth - position.size, dragStart.current.origX + dx));
       let newY = Math.max(0, Math.min(bounds.maxHeight - position.size, dragStart.current.origY + dy));
 
-      // Apply snapping
       if (snapTargets.length > 0) {
         const snapped = applySnap(newX, newY, position.size, snapTargets);
         newX = Math.max(0, Math.min(bounds.maxWidth - position.size, snapped.x));
         newY = Math.max(0, Math.min(bounds.maxHeight - position.size, snapped.y));
       }
 
+      const actualDx = newX - dragStart.current.origX;
+      const actualDy = newY - dragStart.current.origY;
+
       onUpdate({ x: newX, y: newY });
+      onDragDelta?.(actualDx, actualDy);
     },
-    [bounds.maxWidth, bounds.maxHeight, position.size, onUpdate, snapTargets]
+    [bounds.maxWidth, bounds.maxHeight, position.size, onUpdate, snapTargets, onDragDelta]
   );
 
   const onDragPointerUp = useCallback(() => {
     dragStart.current = null;
-  }, []);
+    onDragEnd?.();
+  }, [onDragEnd]);
 
   const onResizePointerDown = useCallback(
     (e: React.PointerEvent, corner: string) => {
@@ -129,8 +141,9 @@ export function useDragResize(
         origSize: position.size,
         corner,
       };
+      onResizeStart?.(corner);
     },
-    [position.x, position.y, position.size]
+    [position.x, position.y, position.size, onResizeStart]
   );
 
   const onResizePointerMove = useCallback(
@@ -167,13 +180,15 @@ export function useDragResize(
       }
 
       onUpdate({ x: newX, y: newY, size: newSize });
+      onResizeDelta?.(newSize - origSize, corner);
     },
-    [bounds.maxWidth, bounds.maxHeight, onUpdate]
+    [bounds.maxWidth, bounds.maxHeight, onUpdate, onResizeDelta]
   );
 
   const onResizePointerUp = useCallback(() => {
     resizeStart.current = null;
-  }, []);
+    onResizeEnd?.();
+  }, [onResizeEnd]);
 
   return {
     dragHandlers: {
