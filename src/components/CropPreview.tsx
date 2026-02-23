@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CropSquare, LoadedImage } from '../types';
+import type { CropSquare, LoadedImage, QualityAnalysis } from '../types';
 
 interface CropPreviewProps {
   image: LoadedImage;
   squares: CropSquare[];
+  qualityById: Record<string, QualityAnalysis>;
   scaleFactor: number;
   selectedIds: Set<string>;
   onSelect: (id: string) => void;
@@ -15,12 +16,14 @@ function PreviewThumb({
   image,
   square,
   scaleFactor,
+  quality,
   isSelected,
   onClick,
 }: {
   image: LoadedImage;
   square: CropSquare;
   scaleFactor: number;
+  quality?: QualityAnalysis;
   isSelected: boolean;
   onClick: () => void;
 }) {
@@ -44,9 +47,14 @@ function PreviewThumb({
     );
   }, [image, square.x, square.y, square.size, scaleFactor]);
 
+  const qualityTitle = quality?.reasons[0] ?? 'Pending analysis';
+  const hasAlert = quality?.level === 'warning' || quality?.level === 'critical';
+  const alertColor = quality?.level === 'critical' ? 'bg-red-400' : 'bg-amber-glow';
+
   return (
     <button
       onClick={onClick}
+      title={qualityTitle}
       className={`
         relative shrink-0 rounded-sm overflow-hidden
         transition-all duration-200 group/thumb
@@ -76,6 +84,9 @@ function PreviewThumb({
       `}>
         {square.order}
       </div>
+      {hasAlert && (
+        <div className={`absolute top-1 right-1 w-[8px] h-[8px] rounded-full ${alertColor} shadow-[0_0_10px_rgba(0,0,0,0.4)]`} />
+      )}
     </button>
   );
 }
@@ -161,7 +172,14 @@ function Lightbox({
   );
 }
 
-export function CropPreview({ image, squares, scaleFactor, selectedIds, onSelect }: CropPreviewProps) {
+export function CropPreview({
+  image,
+  squares,
+  qualityById,
+  scaleFactor,
+  selectedIds,
+  onSelect,
+}: CropPreviewProps) {
   const [lightboxId, setLightboxId] = useState<string | null>(null);
 
   const handleThumbClick = useCallback((id: string) => {
@@ -189,6 +207,7 @@ export function CropPreview({ image, squares, scaleFactor, selectedIds, onSelect
               image={image}
               square={sq}
               scaleFactor={scaleFactor}
+              quality={qualityById[sq.id]}
               isSelected={selectedIds.has(sq.id)}
               onClick={() => handleThumbClick(sq.id)}
             />

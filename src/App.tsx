@@ -1,11 +1,14 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Header } from './components/Header';
 import { DropZone } from './components/DropZone';
 import { ImageWorkspace } from './components/ImageWorkspace';
 import { SquareList } from './components/SquareList';
 import { Toolbar } from './components/Toolbar';
+import { QualityPanel } from './components/QualityPanel';
+import { ExportQualityModal } from './components/ExportQualityModal';
 import { useImageLoader } from './hooks/useImageLoader';
 import { useCropSquares } from './hooks/useCropSquares';
+import { useImageQuality } from './hooks/useImageQuality';
 import { exportAsZip } from './utils/zipExporter';
 
 function App() {
@@ -15,8 +18,39 @@ function App() {
   const [scaleFactor, setScaleFactor] = useState(1);
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
   const [isExporting, setIsExporting] = useState(false);
+  const [showExportQualityModal, setShowExportQualityModal] = useState(false);
+  const qualityReport = useImageQuality(image, squares, scaleFactor);
 
-  const handleExport = useCallback(async () => {
+  const sortedSquares = useMemo(() => [...squares].sort((a, b) => a.order - b.order), [squares]);
+  const criticalSlides = useMemo(
+    () =>
+      sortedSquares
+        .map((square) => {
+          const quality = qualityReport.bySquareId[square.id];
+          if (!quality || quality.level !== 'critical') return null;
+          return {
+            id: square.id,
+            order: square.order,
+            score: quality.score,
+            reason: quality.reasons[0] ?? 'Critical image quality issue',
+          };
+        })
+        .filter((item): item is { id: string; order: number; score: number; reason: string } => item !== null),
+    [sortedSquares, qualityReport.bySquareId]
+  );
+
+  const warningSlidesCount = useMemo(
+    () =>
+      sortedSquares.filter((square) => {
+        const quality = qualityReport.bySquareId[square.id];
+        return quality?.level === 'warning';
+      }).length,
+    [sortedSquares, qualityReport.bySquareId]
+  );
+
+  const criticalSlidesCount = criticalSlides.length;
+
+  const executeExport = useCallback(async () => {
     if (!image || squares.length === 0) return;
     setIsExporting(true);
     try {
@@ -27,6 +61,15 @@ function App() {
       setIsExporting(false);
     }
   }, [image, squares, scaleFactor]);
+
+  const handleExport = useCallback(async () => {
+    if (!image || squares.length === 0) return;
+    if (criticalSlides.length > 0) {
+      setShowExportQualityModal(true);
+      return;
+    }
+    await executeExport();
+  }, [image, squares.length, criticalSlides.length, executeExport]);
 
   const handleSelect = useCallback((id: string, shiftKey: boolean) => {
     setSelectedIds((prev) => {
@@ -50,6 +93,7 @@ function App() {
   const handleNewImage = useCallback(() => {
     clearAll();
     setSelectedIds(new Set());
+    setShowExportQualityModal(false);
     resetImage();
   }, [clearAll, resetImage]);
 
@@ -99,6 +143,7 @@ function App() {
             onRemoveSquare={removeSquare}
             onScaleFactorChange={setScaleFactor}
             onDisplaySizeChange={handleDisplaySizeChange}
+            qualityById={qualityReport.bySquareId}
           />
 
           {/* Sidebar */}
@@ -108,8 +153,15 @@ function App() {
                 Slides
               </h2>
             </div>
+            <QualityPanel
+              globalQuality={qualityReport.global}
+              warningCount={warningSlidesCount}
+              criticalCount={criticalSlidesCount}
+              isAnalyzing={qualityReport.isAnalyzing}
+            />
             <SquareList
               squares={squares}
+              qualityById={qualityReport.bySquareId}
               selectedIds={selectedIds}
               onSelect={(id) => handleSelect(id, false)}
               onRemove={removeSquare}
@@ -129,6 +181,16 @@ function App() {
           </div>
         </div>
       )}
+
+      <ExportQualityModal
+        open={showExportQualityModal}
+        criticalSlides={criticalSlides}
+        onCancel={() => setShowExportQualityModal(false)}
+        onConfirm={() => {
+          setShowExportQualityModal(false);
+          void executeExport();
+        }}
+      />
     </div>
   );
 }

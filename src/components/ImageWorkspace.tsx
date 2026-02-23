@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { CropSquare } from './CropSquare';
 import { CropPreview } from './CropPreview';
-import type { CropSquare as CropSquareType, LoadedImage } from '../types';
+import type { CropSquare as CropSquareType, LoadedImage, QualityAnalysis } from '../types';
 
 interface ImageWorkspaceProps {
   image: LoadedImage;
@@ -13,6 +13,7 @@ interface ImageWorkspaceProps {
   onRemoveSquare: (id: string) => void;
   onScaleFactorChange: (factor: number) => void;
   onDisplaySizeChange: (width: number, height: number) => void;
+  qualityById: Record<string, QualityAnalysis>;
 }
 
 const MAX_DISPLAY_WIDTH = 900;
@@ -28,29 +29,33 @@ export function ImageWorkspace({
   onRemoveSquare,
   onScaleFactorChange,
   onDisplaySizeChange,
+  qualityById,
 }: ImageWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
-  const [scaleFactor, setScaleFactor] = useState(1);
+  const displaySize = useMemo(() => {
+    const { naturalWidth, naturalHeight } = image;
+    const scaleX = MAX_DISPLAY_WIDTH / naturalWidth;
+    const scaleY = MAX_DISPLAY_HEIGHT / naturalHeight;
+    const scale = Math.min(scaleX, scaleY, 1);
+
+    return {
+      width: Math.round(naturalWidth * scale),
+      height: Math.round(naturalHeight * scale),
+    };
+  }, [image]);
+  const scaleFactor = useMemo(
+    () => image.naturalWidth / displaySize.width,
+    [image.naturalWidth, displaySize.width]
+  );
 
   // Group drag: store starting positions of all selected squares (except the one being dragged)
   const groupDragOrigins = useRef<Map<string, { x: number; y: number; size: number }>>(new Map());
   const draggingSquareId = useRef<string | null>(null);
 
   useEffect(() => {
-    const { naturalWidth, naturalHeight } = image;
-    const scaleX = MAX_DISPLAY_WIDTH / naturalWidth;
-    const scaleY = MAX_DISPLAY_HEIGHT / naturalHeight;
-    const scale = Math.min(scaleX, scaleY, 1);
-
-    const width = Math.round(naturalWidth * scale);
-    const height = Math.round(naturalHeight * scale);
-    setDisplaySize({ width, height });
-    const factor = naturalWidth / width;
-    setScaleFactor(factor);
-    onScaleFactorChange(factor);
-    onDisplaySizeChange(width, height);
-  }, [image, onScaleFactorChange, onDisplaySizeChange]);
+    onScaleFactorChange(scaleFactor);
+    onDisplaySizeChange(displaySize.width, displaySize.height);
+  }, [displaySize.height, displaySize.width, onDisplaySizeChange, onScaleFactorChange, scaleFactor]);
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
@@ -134,7 +139,7 @@ export function ImageWorkspace({
     }
   }, [selectedIds, squares]);
 
-  const handleGroupResizeDelta = useCallback((sizeDelta: number, _corner: string) => {
+  const handleGroupResizeDelta = useCallback((sizeDelta: number) => {
     const data = groupResizeData.current;
     if (!data) return;
 
@@ -230,6 +235,7 @@ export function ImageWorkspace({
         <CropPreview
           image={image}
           squares={squares}
+          qualityById={qualityById}
           scaleFactor={scaleFactor}
           selectedIds={selectedIds}
           onSelect={(id) => onSelect(id, false)}
