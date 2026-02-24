@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CropSquare } from './CropSquare';
 import { CropPreview } from './CropPreview';
 import type { CropSquare as CropSquareType, LoadedImage, QualityAnalysis } from '../types';
@@ -8,6 +8,10 @@ interface ImageWorkspaceProps {
   squares: CropSquareType[];
   selectedIds: Set<string>;
   onSelect: (id: string, shiftKey: boolean) => void;
+  onToggleSelect: (id: string) => void;
+  onLongPressSelect: (id: string) => void;
+  isMobileViewport: boolean;
+  isMobileSelectionMode: boolean;
   onAddSquare: (x: number, y: number, size: number) => void;
   onUpdateSquare: (id: string, patch: Partial<Pick<CropSquareType, 'x' | 'y' | 'size'>>) => void;
   onRemoveSquare: (id: string) => void;
@@ -24,6 +28,10 @@ export function ImageWorkspace({
   squares,
   selectedIds,
   onSelect,
+  onToggleSelect,
+  onLongPressSelect,
+  isMobileViewport,
+  isMobileSelectionMode,
   onAddSquare,
   onUpdateSquare,
   onRemoveSquare,
@@ -31,21 +39,61 @@ export function ImageWorkspace({
   onDisplaySizeChange,
   qualityById,
 }: ImageWorkspaceProps) {
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState<number | null>(null);
+  const [hasMeasuredWidth, setHasMeasuredWidth] = useState(false);
+
+  useEffect(() => {
+    if (!workspaceRef.current) return;
+    const element = workspaceRef.current;
+    const measure = () => {
+      const width = element.getBoundingClientRect().width || element.clientWidth || 0;
+      if (width > 0) {
+        setAvailableWidth(width);
+        setHasMeasuredWidth(true);
+      }
+    };
+
+    measure();
+    const rafId = window.requestAnimationFrame(measure);
+    window.addEventListener('resize', measure);
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver((entries) => {
+        const width = entries[0]?.contentRect.width ?? 0;
+        if (width > 0) {
+          setAvailableWidth(width);
+          setHasMeasuredWidth(true);
+        }
+      });
+      observer.observe(element);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', measure);
+      observer?.disconnect();
+    };
+  }, []);
+
   const displaySize = useMemo(() => {
+    const resolvedWidth = availableWidth && availableWidth > 0 ? availableWidth : MAX_DISPLAY_WIDTH;
     const { naturalWidth, naturalHeight } = image;
-    const scaleX = MAX_DISPLAY_WIDTH / naturalWidth;
+    const maxWidth = Math.min(MAX_DISPLAY_WIDTH, Math.max(260, resolvedWidth - 24));
+    const scaleX = maxWidth / naturalWidth;
     const scaleY = MAX_DISPLAY_HEIGHT / naturalHeight;
     const scale = Math.min(scaleX, scaleY, 1);
 
     return {
-      width: Math.round(naturalWidth * scale),
-      height: Math.round(naturalHeight * scale),
+      width: naturalWidth * scale,
+      height: naturalHeight * scale,
     };
-  }, [image]);
+  }, [availableWidth, image]);
   const scaleFactor = useMemo(
-    () => image.naturalWidth / displaySize.width,
-    [image.naturalWidth, displaySize.width]
+    () => (displaySize.width > 0 ? image.naturalWidth / displaySize.width : 1),
+    [displaySize.width, image.naturalWidth]
   );
 
   // Group drag: store starting positions of all selected squares (except the one being dragged)
@@ -53,12 +101,17 @@ export function ImageWorkspace({
   const draggingSquareId = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!hasMeasuredWidth || displaySize.width <= 0 || displaySize.height <= 0) {
+      onDisplaySizeChange(0, 0);
+      return;
+    }
     onScaleFactorChange(scaleFactor);
     onDisplaySizeChange(displaySize.width, displaySize.height);
-  }, [displaySize.height, displaySize.width, onDisplaySizeChange, onScaleFactorChange, scaleFactor]);
+  }, [displaySize.height, displaySize.width, hasMeasuredWidth, onDisplaySizeChange, onScaleFactorChange, scaleFactor]);
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
+      if (isMobileViewport && isMobileSelectionMode) return;
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
@@ -72,7 +125,7 @@ export function ImageWorkspace({
 
       onAddSquare(x, y, size);
     },
-    [displaySize, onAddSquare]
+    [displaySize, isMobileSelectionMode, isMobileViewport, onAddSquare]
   );
 
   const makeGroupDragStart = useCallback((squareId: string) => () => {
@@ -176,7 +229,7 @@ export function ImageWorkspace({
   if (displaySize.width === 0) return null;
 
   return (
-    <div className="flex-1 flex items-center justify-center p-8 overflow-auto animate-fade-in">
+    <div ref={workspaceRef} className="flex-1 min-h-0 flex items-center justify-center p-3 sm:p-6 lg:p-8 overflow-auto animate-fade-in">
       <div className="relative">
         {/* Ambient glow behind image */}
         <div
@@ -189,7 +242,7 @@ export function ImageWorkspace({
         {/* Image container */}
         <div
           ref={containerRef}
-          className="relative select-none shadow-2xl"
+          className="relative select-none shadow-2xl touch-none"
           style={{ width: displaySize.width, height: displaySize.height }}
           onClick={handleCanvasClick}
         >
@@ -215,6 +268,10 @@ export function ImageWorkspace({
               onRemove={onRemoveSquare}
               isSelected={selectedIds.has(sq.id)}
               onSelect={onSelect}
+              onToggleSelect={onToggleSelect}
+              onLongPressSelect={onLongPressSelect}
+              isMobileViewport={isMobileViewport}
+              isMobileSelectionMode={isMobileSelectionMode}
               onDragStart={makeGroupDragStart(sq.id)}
               onDragDelta={selectedIds.size > 1 && selectedIds.has(sq.id) ? handleGroupDragDelta : undefined}
               onDragEnd={handleGroupDragEnd}
@@ -238,7 +295,13 @@ export function ImageWorkspace({
           qualityById={qualityById}
           scaleFactor={scaleFactor}
           selectedIds={selectedIds}
-          onSelect={(id) => onSelect(id, false)}
+          onSelect={(id) => {
+            if (isMobileViewport && isMobileSelectionMode) {
+              onToggleSelect(id);
+              return;
+            }
+            onSelect(id, false);
+          }}
         />
       </div>
     </div>

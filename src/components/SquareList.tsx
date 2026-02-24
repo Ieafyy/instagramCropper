@@ -3,6 +3,7 @@ import type { CropSquare, QualityAnalysis } from '../types';
 interface SquareListProps {
   squares: CropSquare[];
   qualityById: Record<string, QualityAnalysis>;
+  scaleFactor: number;
   selectedIds: Set<string>;
   onSelect: (id: string) => void;
   onRemove: (id: string) => void;
@@ -19,6 +20,7 @@ function qualityDotClasses(level: QualityAnalysis['level'] | undefined): string 
 export function SquareList({
   squares,
   qualityById,
+  scaleFactor,
   selectedIds,
   onSelect,
   onRemove,
@@ -33,17 +35,23 @@ export function SquareList({
           <line x1="11" y1="16" x2="21" y2="16" stroke="currentColor" strokeWidth="1" opacity="0.5" />
         </svg>
         <p className="text-text-3 text-xs text-center leading-relaxed">
-          Click on the image<br />to add crop areas
+          Tap the image<br />to add crop areas
         </p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+    <div className="flex-1 overflow-y-auto p-2 space-y-1">
       {squares.map((sq, index) => {
         const quality = qualityById[sq.id];
         const firstReason = quality?.reasons[0] ?? 'Pending analysis';
+        const sourceSize = Math.max(
+          1,
+          Math.round(
+            sq.size * (Number.isFinite(scaleFactor) && scaleFactor > 0 ? scaleFactor : 1)
+          )
+        );
 
         return (
           <div
@@ -51,7 +59,7 @@ export function SquareList({
             onClick={() => onSelect(sq.id)}
             title={firstReason}
             className={`
-              relative flex items-center gap-2.5 px-3 py-2.5 rounded-md cursor-pointer
+              relative flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer
               transition-all duration-200 group/item
               ${selectedIds.has(sq.id)
                 ? 'bg-amber-muted'
@@ -75,17 +83,17 @@ export function SquareList({
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${qualityDotClasses(quality?.level)}`} />
 
             <span className="text-text-3 text-[11px] flex-1 truncate font-light tracking-wide">
-              {Math.round(sq.size)} &times; {Math.round(sq.size)}
+              {sourceSize} &times; {sourceSize}px source
             </span>
 
-            <div className="flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity duration-200">
+            <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover/item:opacity-100 transition-opacity duration-200">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   if (index > 0) onMove(index, index - 1);
                 }}
                 disabled={index === 0}
-                className="p-1 rounded text-text-3 hover:text-text-2 disabled:opacity-20 disabled:cursor-default transition-colors"
+                className="p-1.5 md:p-1 rounded text-text-3 hover:text-text-2 hover:bg-white/[0.03] disabled:opacity-20 disabled:cursor-default transition-colors"
                 title="Move up"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -98,7 +106,7 @@ export function SquareList({
                   if (index < squares.length - 1) onMove(index, index + 1);
                 }}
                 disabled={index === squares.length - 1}
-                className="p-1 rounded text-text-3 hover:text-text-2 disabled:opacity-20 disabled:cursor-default transition-colors"
+                className="p-1.5 md:p-1 rounded text-text-3 hover:text-text-2 hover:bg-white/[0.03] disabled:opacity-20 disabled:cursor-default transition-colors"
                 title="Move down"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -110,7 +118,7 @@ export function SquareList({
                   e.stopPropagation();
                   onRemove(sq.id);
                 }}
-                className="p-1 rounded text-text-3 hover:text-red-400 transition-colors"
+                className="p-1.5 md:p-1 rounded text-text-3 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                 title="Remove"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
