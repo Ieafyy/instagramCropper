@@ -18,6 +18,8 @@ interface ImageWorkspaceProps {
   onScaleFactorChange: (factor: number) => void;
   onDisplaySizeChange: (width: number, height: number) => void;
   qualityById: Record<string, QualityAnalysis>;
+  onEditGestureStart: () => void;
+  onEditGestureEnd: () => void;
 }
 
 const MAX_DISPLAY_WIDTH = 900;
@@ -38,6 +40,8 @@ export function ImageWorkspace({
   onScaleFactorChange,
   onDisplaySizeChange,
   qualityById,
+  onEditGestureStart,
+  onEditGestureEnd,
 }: ImageWorkspaceProps) {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -129,6 +133,7 @@ export function ImageWorkspace({
   );
 
   const makeGroupDragStart = useCallback((squareId: string) => () => {
+    onEditGestureStart();
     draggingSquareId.current = squareId;
     if (selectedIds.size > 1 && selectedIds.has(squareId)) {
       const origins = new Map<string, { x: number; y: number; size: number }>();
@@ -141,7 +146,7 @@ export function ImageWorkspace({
     } else {
       groupDragOrigins.current = new Map();
     }
-  }, [selectedIds, squares]);
+  }, [onEditGestureStart, selectedIds, squares]);
 
   const handleGroupDragDelta = useCallback((dx: number, dy: number) => {
     for (const [id, origin] of groupDragOrigins.current) {
@@ -154,7 +159,8 @@ export function ImageWorkspace({
   const handleGroupDragEnd = useCallback(() => {
     groupDragOrigins.current = new Map();
     draggingSquareId.current = null;
-  }, []);
+    onEditGestureEnd();
+  }, [onEditGestureEnd]);
 
   // Group resize: scale all selected squares proportionally from the group bounding box anchor
   const groupResizeData = useRef<{
@@ -164,6 +170,7 @@ export function ImageWorkspace({
   } | null>(null);
 
   const makeGroupResizeStart = useCallback((squareId: string) => (corner: string) => {
+    onEditGestureStart();
     if (selectedIds.size > 1 && selectedIds.has(squareId)) {
       const selected = squares.filter((sq) => selectedIds.has(sq.id));
       const origins = new Map<string, { x: number; y: number; size: number }>();
@@ -190,7 +197,7 @@ export function ImageWorkspace({
     } else {
       groupResizeData.current = null;
     }
-  }, [selectedIds, squares]);
+  }, [onEditGestureStart, selectedIds, squares]);
 
   const handleGroupResizeDelta = useCallback((sizeDelta: number) => {
     const data = groupResizeData.current;
@@ -216,7 +223,8 @@ export function ImageWorkspace({
 
   const handleGroupResizeEnd = useCallback(() => {
     groupResizeData.current = null;
-  }, []);
+    onEditGestureEnd();
+  }, [onEditGestureEnd]);
 
   // For snap targets: exclude all selected squares when doing group drag
   const getSnapTargets = useCallback((squareId: string) => {
@@ -242,6 +250,7 @@ export function ImageWorkspace({
         {/* Image container */}
         <div
           ref={containerRef}
+          data-selection-interactive="true"
           className="relative select-none shadow-2xl touch-none"
           style={{ width: displaySize.width, height: displaySize.height }}
           onClick={handleCanvasClick}

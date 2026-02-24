@@ -83,6 +83,7 @@ export function CropSquare({
 
   return (
     <div
+      data-selection-interactive="true"
       className={`absolute group touch-none ${isSelected ? 'z-20' : 'z-10'}`}
       style={{
         left: square.x,
@@ -145,21 +146,21 @@ export function CropSquare({
       <div
         className={`absolute inset-0 transition-all duration-200 ${
           isSelected
-            ? 'ring-2 ring-inset ring-amber-glow/80 shadow-[0_0_12px_rgba(212,160,55,0.15)]'
-            : 'ring-1 ring-inset ring-amber-glow/35 md:group-hover:ring-amber-glow/60'
+            ? 'ring-2 ring-inset ring-white/85 shadow-[0_0_12px_rgba(255,255,255,0.22)]'
+            : 'ring-1 ring-inset ring-zinc-200/45 md:group-hover:ring-zinc-100/70'
         }`}
       />
 
       {/* Inner clear area indicator */}
       <div className={`absolute inset-0 transition-colors duration-200 ${
-        isSelected ? 'bg-amber-glow/5' : 'bg-transparent group-hover:bg-amber-glow/3'
+        isSelected ? 'bg-white/8' : 'bg-transparent group-hover:bg-zinc-100/5'
       }`} />
 
       {/* Order badge */}
       <div className={`absolute -top-3 -left-3 min-w-[22px] h-[22px] px-1.5 rounded-sm flex items-center justify-center text-[11px] font-semibold tracking-tight transition-all duration-200 ${
         isSelected
-          ? 'bg-amber-glow text-surface-0 shadow-[0_0_8px_rgba(212,160,55,0.3)]'
-          : 'bg-surface-3 text-text-2 group-hover:bg-amber-glow/80 group-hover:text-surface-0'
+          ? 'bg-zinc-100 text-zinc-900 shadow-[0_0_8px_rgba(255,255,255,0.28)]'
+          : 'bg-surface-3 text-text-1 group-hover:bg-zinc-200/85 group-hover:text-zinc-900'
       }`}>
         {square.order}
       </div>
@@ -193,13 +194,13 @@ export function CropSquare({
           onPointerMove={resizeHandlers.onPointerMove}
           onPointerUp={resizeHandlers.onPointerUp}
         >
-          <div className="absolute inset-0 rounded-full bg-surface-0/70 border border-amber-glow/35 md:bg-transparent md:border-0" />
+          <div className="absolute inset-0 rounded-full bg-surface-0/70 border border-zinc-200/40 md:bg-transparent md:border-0" />
           <div className={`absolute inset-2 md:inset-[3px] ${
             corner === 'nw' ? 'border-t border-l' :
             corner === 'ne' ? 'border-t border-r' :
             corner === 'sw' ? 'border-b border-l' :
             'border-b border-r'
-          } border-amber-glow/90`} />
+          } border-zinc-100/95`} />
         </div>
       ))}
     </div>

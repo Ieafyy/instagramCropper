@@ -9,6 +9,10 @@ interface ToolbarProps {
   onAutoFill: (count: number) => void;
   onExport: () => void;
   onExportFormatChange: (format: ExportFormat) => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
   onClear: () => void;
   onNewImage: () => void;
   isMobileViewport: boolean;
@@ -98,6 +102,10 @@ export function Toolbar({
   onAutoFill,
   onExport,
   onExportFormatChange,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
   onClear,
   onNewImage,
   isMobileViewport,
@@ -198,7 +206,7 @@ export function Toolbar({
               <button
                 onClick={onExport}
                 disabled={squareCount === 0 || isExporting}
-                className="flex-1 min-h-10 sm:min-h-9 flex items-center justify-center gap-1.5 px-3 py-2 rounded-l-md bg-amber-glow text-surface-0 text-xs font-semibold tracking-wide hover:bg-amber-soft disabled:opacity-25 disabled:cursor-default transition-all duration-200"
+                className="flex-1 min-h-10 sm:min-h-9 flex items-center justify-center gap-1.5 px-3 py-2 rounded-l-md bg-amber-glow text-surface-0 text-xs font-semibold tracking-wide whitespace-nowrap hover:bg-amber-soft disabled:opacity-25 disabled:cursor-default transition-all duration-200"
               >
                 {isExporting ? (
                   <>
@@ -266,6 +274,28 @@ export function Toolbar({
         {/* Secondary actions */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
+            <button
+              onClick={onUndo}
+              disabled={!canUndo}
+              className="p-2 sm:p-1.5 rounded text-text-3 hover:text-text-2 hover:bg-white/[0.03] disabled:opacity-20 disabled:cursor-default transition-all duration-200"
+              title="Undo (Ctrl/Cmd+Z)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 14 4 9l5-5" />
+                <path d="M4 9h9a7 7 0 1 1 0 14h-1" />
+              </svg>
+            </button>
+            <button
+              onClick={onRedo}
+              disabled={!canRedo}
+              className="p-2 sm:p-1.5 rounded text-text-3 hover:text-text-2 hover:bg-white/[0.03] disabled:opacity-20 disabled:cursor-default transition-all duration-200"
+              title="Redo (Ctrl/Cmd+Shift+Z or Ctrl+Y)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m15 14 5-5-5-5" />
+                <path d="M20 9h-9a7 7 0 1 0 0 14h1" />
+              </svg>
+            </button>
             {isMobileViewport && squareCount > 0 && (
               <button
                 onClick={onToggleMobileSelectionMode}

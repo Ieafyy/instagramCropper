@@ -14,6 +14,27 @@ import { exportAsZip, exportAsImages, type ExportFormat } from './utils/zipExpor
 type AppTheme = 'dark' | 'light';
 const THEME_STORAGE_KEY = 'carousel-cropper-theme';
 
+function isEditableEventTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  return (
+    target.isContentEditable ||
+    tagName === 'input' ||
+    tagName === 'textarea' ||
+    tagName === 'select'
+  );
+}
+
+function isSelectionInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+
+  if (target.closest('[data-selection-interactive="true"]')) return true;
+
+  return Boolean(
+    target.closest('button, a, input, textarea, select, label, [role="button"], [role="menuitem"]')
+  );
+}
+
 function App() {
   const [theme, setTheme] = useState<AppTheme>(() => {
     if (typeof window === 'undefined') return 'dark';
@@ -21,7 +42,23 @@ function App() {
     return saved === 'light' ? 'light' : 'dark';
   });
   const { image, loadImage, reset: resetImage } = useImageLoader();
-  const { squares, addSquare, updateSquare, removeSquare, moveSquare, clearAll, clampSquaresToBounds, rescaleSquaresToBounds } = useCropSquares();
+  const {
+    squares,
+    addSquare,
+    updateSquare,
+    removeSquare,
+    moveSquare,
+    clearAll,
+    resetSquaresState,
+    clampSquaresToBounds,
+    rescaleSquaresToBounds,
+    beginGestureEdit,
+    endGestureEdit,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useCropSquares();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [mobilePanelExpanded, setMobilePanelExpanded] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
@@ -90,6 +127,58 @@ function App() {
     }
   }, [theme]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const hasModifier = event.metaKey || event.ctrlKey;
+      if (!hasModifier || event.altKey || isEditableEventTarget(event.target)) return;
+
+      const key = event.key.toLowerCase();
+
+      if (key === 'z') {
+        if (event.shiftKey) {
+          if (!canRedo) return;
+          event.preventDefault();
+          redo();
+        } else {
+          if (!canUndo) return;
+          event.preventDefault();
+          undo();
+        }
+        return;
+      }
+
+      if (key === 'y' && event.ctrlKey && !event.metaKey) {
+        if (!canRedo) return;
+        event.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canRedo, canUndo, redo, undo]);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const existingIds = new Set(squares.map((square) => square.id));
+      let changed = false;
+      const next = new Set<string>();
+
+      for (const id of prev) {
+        if (existingIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [squares]);
+
   const toggleSelection = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -157,17 +246,26 @@ function App() {
   }, []);
 
   const handleNewImage = useCallback(() => {
-    clearAll();
+    resetSquaresState();
     setSelectedIds(new Set());
     setMobilePanelExpanded(false);
     setMobileSelectionMode(false);
     setShowExportQualityModal(false);
     resetImage();
-  }, [clearAll, resetImage]);
+  }, [resetImage, resetSquaresState]);
 
   const handleDisplaySizeChange = useCallback((width: number, height: number) => {
     setDisplaySize({ width, height });
   }, []);
+
+  const handlePointerDownCapture = useCallback(
+    (event: React.PointerEvent) => {
+      if (selectedIds.size === 0) return;
+      if (isSelectionInteractiveTarget(event.target)) return;
+      setSelectedIds(new Set());
+    },
+    [selectedIds.size]
+  );
 
   useEffect(() => {
     if (displaySize.width <= 0 || displaySize.height <= 0) return;
@@ -209,7 +307,10 @@ function App() {
   }, [displaySize, addSquare, clearAll]);
 
   return (
-    <div className="h-screen flex flex-col bg-surface-0 text-text-1 font-body overflow-hidden">
+    <div
+      className="h-screen flex flex-col bg-surface-0 text-text-1 font-body overflow-hidden"
+      onPointerDownCapture={handlePointerDownCapture}
+    >
       {/* Noise texture */}
       <div className="noise-overlay" />
 
@@ -240,10 +341,12 @@ function App() {
             onScaleFactorChange={setScaleFactor}
             onDisplaySizeChange={handleDisplaySizeChange}
             qualityById={qualityReport.bySquareId}
+            onEditGestureStart={beginGestureEdit}
+            onEditGestureEnd={endGestureEdit}
           />
 
           {/* Sidebar */}
-          <div className="w-full lg:w-56 flex shrink-0 flex-col border-border-1 bg-surface-1/60 border-t lg:border-t-0 lg:border-l">
+          <div className="w-full lg:w-72 xl:w-80 flex shrink-0 flex-col border-border-1 bg-surface-1/60 border-t lg:border-t-0 lg:border-l">
             <div className="px-3 py-2.5 border-b border-border-2 flex items-center justify-between">
               <h2 className="text-[11px] font-medium text-text-3 tracking-widest uppercase">
                 Slides
@@ -300,6 +403,10 @@ function App() {
                 onAutoFill={handleAutoFill}
                 onExport={handleExport}
                 onExportFormatChange={setExportFormat}
+                onUndo={undo}
+                onRedo={redo}
+                canUndo={canUndo}
+                canRedo={canRedo}
                 onClear={clearAll}
                 onNewImage={handleNewImage}
                 isMobileViewport={isMobileViewport}

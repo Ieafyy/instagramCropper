@@ -30,6 +30,39 @@ interface DragResizeOptions {
 const MIN_SIZE = 50;
 const SNAP_THRESHOLD = 12;
 
+function rangesOverlap(startA: number, endA: number, startB: number, endB: number): boolean {
+  return Math.min(endA, endB) - Math.max(startA, startB) > 0;
+}
+
+function isAdjacentToTarget(x: number, y: number, size: number, target: SnapTarget): boolean {
+  const left = x;
+  const right = x + size;
+  const top = y;
+  const bottom = y + size;
+
+  const targetLeft = target.x;
+  const targetRight = target.x + target.size;
+  const targetTop = target.y;
+  const targetBottom = target.y + target.size;
+
+  const verticalOverlap = rangesOverlap(top, bottom, targetTop, targetBottom);
+  const horizontalOverlap = rangesOverlap(left, right, targetLeft, targetRight);
+
+  const horizontalGap = Math.min(
+    Math.abs(right - targetLeft),
+    Math.abs(left - targetRight)
+  );
+  const verticalGap = Math.min(
+    Math.abs(bottom - targetTop),
+    Math.abs(top - targetBottom)
+  );
+
+  return (
+    (verticalOverlap && horizontalGap <= SNAP_THRESHOLD) ||
+    (horizontalOverlap && verticalGap <= SNAP_THRESHOLD)
+  );
+}
+
 function applySnap(x: number, y: number, size: number, targets: SnapTarget[]): { x: number; y: number } {
   let snappedX = x;
   let snappedY = y;
@@ -88,7 +121,7 @@ export function useDragResize(
     (e: React.PointerEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      e.currentTarget.setPointerCapture(e.pointerId);
       dragStart.current = {
         startX: e.clientX,
         startY: e.clientY,
@@ -103,6 +136,10 @@ export function useDragResize(
   const onDragPointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (!dragStart.current) return;
+      if ((e.buttons & 1) === 0) {
+        dragStart.current = null;
+        return;
+      }
       const dx = e.clientX - dragStart.current.startX;
       const dy = e.clientY - dragStart.current.startY;
       let newX = Math.max(0, Math.min(bounds.maxWidth - position.size, dragStart.current.origX + dx));
@@ -132,7 +169,7 @@ export function useDragResize(
     (e: React.PointerEvent, corner: string) => {
       e.stopPropagation();
       e.preventDefault();
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      e.currentTarget.setPointerCapture(e.pointerId);
       resizeStart.current = {
         startX: e.clientX,
         startY: e.clientY,
@@ -149,9 +186,21 @@ export function useDragResize(
   const onResizePointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (!resizeStart.current) return;
+      if ((e.buttons & 1) === 0) {
+        resizeStart.current = null;
+        return;
+      }
       const { startX, startY, origX, origY, origSize, corner } = resizeStart.current;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
+      const maxSize =
+        corner === 'se'
+          ? Math.min(bounds.maxWidth - origX, bounds.maxHeight - origY)
+          : corner === 'sw'
+            ? Math.min(origX + origSize, bounds.maxHeight - origY)
+            : corner === 'ne'
+              ? Math.min(bounds.maxWidth - origX, origY + origSize)
+              : Math.min(origX + origSize, origY + origSize);
 
       let newSize = origSize;
       let newX = origX;
@@ -160,29 +209,57 @@ export function useDragResize(
       if (corner === 'se') {
         const delta = Math.max(dx, dy);
         newSize = Math.max(MIN_SIZE, origSize + delta);
-        newSize = Math.min(newSize, bounds.maxWidth - origX, bounds.maxHeight - origY);
       } else if (corner === 'sw') {
         const delta = Math.max(-dx, dy);
         newSize = Math.max(MIN_SIZE, origSize + delta);
-        newSize = Math.min(newSize, origX + origSize, bounds.maxHeight - origY);
         newX = origX + origSize - newSize;
       } else if (corner === 'ne') {
         const delta = Math.max(dx, -dy);
         newSize = Math.max(MIN_SIZE, origSize + delta);
-        newSize = Math.min(newSize, bounds.maxWidth - origX, origY + origSize);
         newY = origY + origSize - newSize;
       } else if (corner === 'nw') {
         const delta = Math.max(-dx, -dy);
         newSize = Math.max(MIN_SIZE, origSize + delta);
-        newSize = Math.min(newSize, origX + origSize, origY + origSize);
         newX = origX + origSize - newSize;
         newY = origY + origSize - newSize;
+      }
+
+      newSize = Math.min(newSize, maxSize);
+
+      if (snapTargets.length > 0) {
+        let bestTargetSize: number | null = null;
+        let bestDelta = SNAP_THRESHOLD + 1;
+
+        for (const target of snapTargets) {
+          if (!isAdjacentToTarget(newX, newY, newSize, target)) continue;
+
+          const candidateSize = Math.max(MIN_SIZE, Math.min(maxSize, target.size));
+          const deltaToCandidate = Math.abs(newSize - candidateSize);
+          if (deltaToCandidate < bestDelta) {
+            bestDelta = deltaToCandidate;
+            bestTargetSize = candidateSize;
+          }
+        }
+
+        if (bestTargetSize !== null && bestDelta <= SNAP_THRESHOLD) {
+          newSize = bestTargetSize;
+          if (corner === 'sw' || corner === 'nw') {
+            newX = origX + origSize - newSize;
+          } else {
+            newX = origX;
+          }
+          if (corner === 'ne' || corner === 'nw') {
+            newY = origY + origSize - newSize;
+          } else {
+            newY = origY;
+          }
+        }
       }
 
       onUpdate({ x: newX, y: newY, size: newSize });
       onResizeDelta?.(newSize - origSize, corner);
     },
-    [bounds.maxWidth, bounds.maxHeight, onUpdate, onResizeDelta]
+    [bounds.maxWidth, bounds.maxHeight, onUpdate, onResizeDelta, snapTargets]
   );
 
   const onResizePointerUp = useCallback(() => {
