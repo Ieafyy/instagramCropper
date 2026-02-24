@@ -104,6 +104,12 @@ function Lightbox({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const renderSize = Math.round(square.size);
+  const sourceSize = Math.max(
+    1,
+    Math.round(
+      square.size * (Number.isFinite(scaleFactor) && scaleFactor > 0 ? scaleFactor : 1)
+    )
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -165,7 +171,7 @@ function Lightbox({
         />
 
         <p className="text-center text-[10px] text-text-3 tracking-wider uppercase mt-3">
-          {renderSize} &times; {renderSize}px display &middot; 1080 &times; 1080px export
+          {sourceSize} &times; {sourceSize}px source &middot; 1080 &times; 1080px export
         </p>
       </div>
     </div>
