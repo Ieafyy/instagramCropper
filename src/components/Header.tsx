@@ -19,9 +19,14 @@ export function Header({ theme, onToggleTheme }: HeaderProps) {
             <rect x="3" y="3" width="5.5" height="22" rx="1" stroke="currentColor" strokeWidth="1" opacity="0.8" />
           </svg>
         </div>
-        <h1 className="font-display italic text-xl text-text-1 tracking-tight leading-none">
-          Carousel Cropper
-        </h1>
+        <div className="leading-none">
+          <h1 className="font-display italic text-xl text-text-1 tracking-tight">
+            Carousel Cropper
+          </h1>
+          <p className="mt-1 text-[9px] uppercase tracking-[0.2em] text-text-3">
+            Local-first editor
+          </p>
+        </div>
       </div>
 
       <button

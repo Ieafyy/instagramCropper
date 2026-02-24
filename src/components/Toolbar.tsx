@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ExportFormat } from '../utils/zipExporter';
 
 interface ToolbarProps {
   squareCount: number;
   isExporting: boolean;
+  exportFormat: ExportFormat;
   onAddSquare: () => void;
   onAutoFill: (count: number) => void;
   onExport: () => void;
+  onExportFormatChange: (format: ExportFormat) => void;
   onClear: () => void;
   onNewImage: () => void;
   isMobileViewport: boolean;
@@ -90,9 +93,11 @@ function AutoFillModal({ onConfirm, onClose }: { onConfirm: (count: number) => v
 export function Toolbar({
   squareCount,
   isExporting,
+  exportFormat,
   onAddSquare,
   onAutoFill,
   onExport,
+  onExportFormatChange,
   onClear,
   onNewImage,
   isMobileViewport,
@@ -101,20 +106,26 @@ export function Toolbar({
   onToggleMobileSelectionMode,
 }: ToolbarProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [showAutoModal, setShowAutoModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
-    if (!dropdownOpen) return;
+    if (!dropdownOpen && !exportMenuOpen) return;
     const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const outsideAdd = !dropdownRef.current || !dropdownRef.current.contains(target);
+      const outsideExport = !exportMenuRef.current || !exportMenuRef.current.contains(target);
+      if (outsideAdd && outsideExport) {
         setDropdownOpen(false);
+        setExportMenuOpen(false);
       }
     };
     document.addEventListener('pointerdown', handleClick);
     return () => document.removeEventListener('pointerdown', handleClick);
-  }, [dropdownOpen]);
+  }, [dropdownOpen, exportMenuOpen]);
 
   const handleAdd = useCallback(() => {
     onAddSquare();
@@ -125,6 +136,13 @@ export function Toolbar({
     setDropdownOpen(false);
     setShowAutoModal(true);
   }, []);
+
+  const handleFormatChange = useCallback((format: ExportFormat) => {
+    onExportFormatChange(format);
+    setExportMenuOpen(false);
+  }, [onExportFormatChange]);
+
+  const exportButtonLabel = exportFormat === 'images' ? 'Export images' : 'Export ZIP';
 
   return (
     <>
@@ -175,29 +193,74 @@ export function Toolbar({
             )}
           </div>
 
-          <button
-            onClick={onExport}
-            disabled={squareCount === 0 || isExporting}
-            className="flex-1 min-h-10 sm:min-h-9 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-amber-glow text-surface-0 text-xs font-semibold tracking-wide hover:bg-amber-soft disabled:opacity-25 disabled:cursor-default transition-all duration-200"
-          >
-            {isExporting ? (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          <div ref={exportMenuRef} className="relative flex-1">
+            <div className="flex">
+              <button
+                onClick={onExport}
+                disabled={squareCount === 0 || isExporting}
+                className="flex-1 min-h-10 sm:min-h-9 flex items-center justify-center gap-1.5 px-3 py-2 rounded-l-md bg-amber-glow text-surface-0 text-xs font-semibold tracking-wide hover:bg-amber-soft disabled:opacity-25 disabled:cursor-default transition-all duration-200"
+              >
+                {isExporting ? (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                    Exporting
+                  </>
+                ) : (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    {exportButtonLabel}
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportMenuOpen((prev) => !prev)}
+                disabled={isExporting}
+                className="inline-flex min-h-10 w-9 items-center justify-center rounded-r-md border-l border-black/10 bg-amber-glow leading-none text-surface-0 transition-colors hover:bg-amber-soft disabled:opacity-25 sm:min-h-9"
+                aria-label="Choose export format"
+                title="Choose export format"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <polyline points="6 9 12 15 18 9" />
                 </svg>
-                Exporting
-              </>
-            ) : (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                Export
-              </>
+              </button>
+            </div>
+
+            {exportMenuOpen && (
+              <div className="absolute bottom-full left-0 right-0 mb-1 overflow-hidden rounded-md border border-border-1 bg-surface-2 shadow-xl animate-fade-in z-30">
+                <button
+                  type="button"
+                  onClick={() => handleFormatChange('zip')}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-text-2 hover:bg-white/[0.05] hover:text-text-1 transition-colors"
+                >
+                  <span>ZIP file</span>
+                  {exportFormat === 'zip' && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFormatChange('images')}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-text-2 hover:bg-white/[0.05] hover:text-text-1 transition-colors"
+                >
+                  <span>Individual images</span>
+                  {exportFormat === 'images' && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             )}
-          </button>
+          </div>
         </div>
 
         {/* Secondary actions */}

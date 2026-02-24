@@ -1,15 +1,15 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
-import { DropZone } from './components/DropZone';
 import { ImageWorkspace } from './components/ImageWorkspace';
 import { SquareList } from './components/SquareList';
 import { Toolbar } from './components/Toolbar';
 import { QualityPanel } from './components/QualityPanel';
 import { ExportQualityModal } from './components/ExportQualityModal';
+import { LandingIntro } from './components/LandingIntro';
 import { useImageLoader } from './hooks/useImageLoader';
 import { useCropSquares } from './hooks/useCropSquares';
 import { useImageQuality } from './hooks/useImageQuality';
-import { exportAsZip } from './utils/zipExporter';
+import { exportAsZip, exportAsImages, type ExportFormat } from './utils/zipExporter';
 
 type AppTheme = 'dark' | 'light';
 const THEME_STORAGE_KEY = 'carousel-cropper-theme';
@@ -29,6 +29,7 @@ function App() {
   const [scaleFactor, setScaleFactor] = useState(1);
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
   const [isExporting, setIsExporting] = useState(false);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('zip');
   const [showExportQualityModal, setShowExportQualityModal] = useState(false);
   const previousDisplaySizeRef = useRef<{ width: number; height: number } | null>(null);
   const qualityReport = useImageQuality(image, squares, scaleFactor);
@@ -105,13 +106,17 @@ function App() {
     if (!image || squares.length === 0) return;
     setIsExporting(true);
     try {
-      await exportAsZip(image.element, squares, scaleFactor, image.file.name);
+      if (exportFormat === 'images') {
+        await exportAsImages(image.element, squares, scaleFactor, image.file.name);
+      } else {
+        await exportAsZip(image.element, squares, scaleFactor, image.file.name);
+      }
     } catch (err) {
       console.error('Export failed:', err);
     } finally {
       setIsExporting(false);
     }
-  }, [image, squares, scaleFactor]);
+  }, [exportFormat, image, squares, scaleFactor]);
 
   const handleExport = useCallback(async () => {
     if (!image || squares.length === 0) return;
@@ -214,10 +219,8 @@ function App() {
       />
 
       {!image ? (
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="w-full max-w-md">
-            <DropZone onFileSelect={loadImage} />
-          </div>
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <LandingIntro onFileSelect={loadImage} />
         </div>
       ) : (
         <div className="flex-1 flex min-h-0 animate-fade-in flex-col lg:flex-row">
@@ -292,9 +295,11 @@ function App() {
               <Toolbar
                 squareCount={squares.length}
                 isExporting={isExporting}
+                exportFormat={exportFormat}
                 onAddSquare={handleAddSquareCenter}
                 onAutoFill={handleAutoFill}
                 onExport={handleExport}
+                onExportFormatChange={setExportFormat}
                 onClear={clearAll}
                 onNewImage={handleNewImage}
                 isMobileViewport={isMobileViewport}

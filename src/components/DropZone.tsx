@@ -55,10 +55,10 @@ export function DropZone({ onFileSelect }: DropZoneProps) {
       onDragLeave={onDragLeave}
       onClick={() => inputRef.current?.click()}
       className={`
-        relative flex flex-col items-center justify-center gap-6 p-16
+        relative flex flex-col items-center justify-center gap-6 rounded-xl border border-border-1/80 bg-surface-0/50 px-8 py-12 sm:p-14
         cursor-pointer transition-all duration-500 ease-out
         animate-slide-up
-        ${isDragOver ? 'scale-[1.01]' : 'scale-100'}
+        ${isDragOver ? 'scale-[1.01] border-amber-glow/50 bg-amber-dim' : 'scale-100'}
       `}
     >
       {/* Corner crop marks */}
@@ -99,10 +99,10 @@ export function DropZone({ onFileSelect }: DropZoneProps) {
 
       <div className="relative text-center space-y-2">
         <p className={`text-sm font-medium tracking-wide transition-colors duration-300 ${isDragOver ? 'text-text-1' : 'text-text-2'}`}>
-          Drop your image here
+          Drop your image here or click to browse
         </p>
-        <p className="text-xs text-text-3 tracking-wider uppercase">
-          PNG &middot; JPG &middot; WebP
+        <p className="text-[11px] text-text-3 tracking-wider uppercase">
+          PNG &middot; JPG &middot; WebP &middot; local processing
         </p>
       </div>
 
