@@ -1,12 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { drawCropToCanvas } from '../utils/cropEngine';
 import type { ExportFormat } from '../utils/zipExporter';
+import type { LoadedImage, PrintBorderSettings } from '../types';
+
+const DEFAULT_PRINT_BORDER: PrintBorderSettings = {
+  enabled: true,
+  sizePercent: 8,
+};
+const AUTO_FILL_MODAL_PREVIEW_SIZE = 112;
+
+export interface AutoFillConfig {
+  count: number;
+  printBorder: PrintBorderSettings;
+}
 
 interface ToolbarProps {
+  image: LoadedImage;
   squareCount: number;
   isExporting: boolean;
   exportFormat: ExportFormat;
   onAddSquare: () => void;
-  onAutoFill: (count: number) => void;
+  onAutoFill: (config: AutoFillConfig) => void;
   onExport: () => void;
   onExportFormatChange: (format: ExportFormat) => void;
   onUndo: () => void;
@@ -21,8 +35,67 @@ interface ToolbarProps {
   onToggleMobileSelectionMode: () => void;
 }
 
-function AutoFillModal({ onConfirm, onClose }: { onConfirm: (count: number) => void; onClose: () => void }) {
+function AutoFillSinglePreview({
+  image,
+  printBorder,
+}: {
+  image: LoadedImage;
+  printBorder: PrintBorderSettings;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const cropSize = Math.min(image.naturalWidth, image.naturalHeight);
+    const cropX = (image.naturalWidth - cropSize) / 2;
+    const cropY = (image.naturalHeight - cropSize) / 2;
+
+    drawCropToCanvas(
+      ctx,
+      image.element,
+      cropX,
+      cropY,
+      cropSize,
+      AUTO_FILL_MODAL_PREVIEW_SIZE,
+      printBorder
+    );
+  }, [image, printBorder]);
+
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-md border border-border-1 bg-surface-1/70 p-2.5">
+      <canvas
+        ref={canvasRef}
+        width={AUTO_FILL_MODAL_PREVIEW_SIZE}
+        height={AUTO_FILL_MODAL_PREVIEW_SIZE}
+        className="block shrink-0 rounded-md ring-1 ring-black/8"
+        style={{ width: AUTO_FILL_MODAL_PREVIEW_SIZE, height: AUTO_FILL_MODAL_PREVIEW_SIZE }}
+      />
+      <div className="min-w-0">
+        <p className="text-[10px] text-text-3 tracking-[0.2em] uppercase">Final preview</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-text-2">
+          This preview mirrors the single auto-fill crop with the white border applied.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AutoFillModal({
+  image,
+  onConfirm,
+  onClose,
+}: {
+  image: LoadedImage;
+  onConfirm: (config: AutoFillConfig) => void;
+  onClose: () => void;
+}) {
   const [count, setCount] = useState(3);
+  const [borderEnabled, setBorderEnabled] = useState(DEFAULT_PRINT_BORDER.enabled);
+  const [borderSize, setBorderSize] = useState(DEFAULT_PRINT_BORDER.sizePercent);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,7 +114,13 @@ function AutoFillModal({ onConfirm, onClose }: { onConfirm: (count: number) => v
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (count >= 1 && count <= 20) {
-      onConfirm(count);
+      onConfirm({
+        count,
+        printBorder: {
+          enabled: count === 1 ? borderEnabled : false,
+          sizePercent: borderSize,
+        },
+      });
       onClose();
     }
   };
@@ -74,6 +153,61 @@ function AutoFillModal({ onConfirm, onClose }: { onConfirm: (count: number) => v
           className="w-full px-3 py-2 rounded-md bg-surface-0 border border-border-1 text-text-1 text-sm outline-none focus:border-amber-glow/50 transition-colors"
         />
 
+        {count === 1 && (
+          <div className="mt-4 rounded-md border border-border-1 bg-surface-0/80 p-3 space-y-3 animate-fade-in">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] text-text-2 tracking-wider uppercase">Printed border</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-text-3">
+                  Add a white frame around the exported square to mimic a printed photo.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBorderEnabled((prev) => !prev)}
+                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border transition-colors duration-200 ${
+                  borderEnabled
+                    ? 'border-amber-glow/30 bg-amber-glow/90'
+                    : 'border-border-1 bg-surface-2'
+                }`}
+                aria-pressed={borderEnabled}
+                aria-label="Toggle printed border"
+              >
+                <span
+                  className={`absolute top-0.5 h-[18px] w-[18px] rounded-full bg-white transition-all duration-200 ${
+                    borderEnabled ? 'left-[22px]' : 'left-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className={`${borderEnabled ? 'opacity-100' : 'opacity-45'} transition-opacity duration-200`}>
+              <div className="flex items-center justify-between text-[10px] text-text-3 tracking-wider uppercase">
+                <span>Frame size</span>
+                <span>{borderSize}%</span>
+              </div>
+              <input
+                type="range"
+                min={3}
+                max={18}
+                step={1}
+                value={borderSize}
+                disabled={!borderEnabled}
+                onChange={(e) => setBorderSize(Number(e.target.value))}
+                className="mt-2 w-full accent-[var(--color-amber-glow)] disabled:cursor-default"
+              />
+            </div>
+
+            <AutoFillSinglePreview
+              image={image}
+              printBorder={{
+                enabled: borderEnabled,
+                sizePercent: borderSize,
+              }}
+            />
+          </div>
+        )}
+
         <div className="flex gap-2 mt-4">
           <button
             type="button"
@@ -95,6 +229,7 @@ function AutoFillModal({ onConfirm, onClose }: { onConfirm: (count: number) => v
 }
 
 export function Toolbar({
+  image,
   squareCount,
   isExporting,
   exportFormat,
@@ -344,6 +479,7 @@ export function Toolbar({
 
       {showAutoModal && (
         <AutoFillModal
+          image={image}
           onConfirm={onAutoFill}
           onClose={() => setShowAutoModal(false)}
         />

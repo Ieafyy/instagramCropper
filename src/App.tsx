@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { ImageWorkspace } from './components/ImageWorkspace';
 import { SquareList } from './components/SquareList';
-import { Toolbar } from './components/Toolbar';
+import { Toolbar, type AutoFillConfig } from './components/Toolbar';
 import { QualityPanel } from './components/QualityPanel';
 import { ExportQualityModal } from './components/ExportQualityModal';
 import { LandingIntro } from './components/LandingIntro';
@@ -10,9 +10,14 @@ import { useImageLoader } from './hooks/useImageLoader';
 import { useCropSquares } from './hooks/useCropSquares';
 import { useImageQuality } from './hooks/useImageQuality';
 import { exportAsZip, exportAsImages, type ExportFormat } from './utils/zipExporter';
+import type { PrintBorderSettings } from './types';
 
 type AppTheme = 'dark' | 'light';
 const THEME_STORAGE_KEY = 'carousel-cropper-theme';
+const DEFAULT_PRINT_BORDER_SETTINGS: PrintBorderSettings = {
+  enabled: true,
+  sizePercent: 8,
+};
 
 function isEditableEventTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -68,8 +73,14 @@ function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('zip');
   const [showExportQualityModal, setShowExportQualityModal] = useState(false);
+  const [autoFillSingleFrameActive, setAutoFillSingleFrameActive] = useState(false);
+  const [printBorder, setPrintBorder] = useState<PrintBorderSettings>(DEFAULT_PRINT_BORDER_SETTINGS);
   const previousDisplaySizeRef = useRef<{ width: number; height: number } | null>(null);
   const qualityReport = useImageQuality(image, squares, scaleFactor);
+  const activePrintBorder = useMemo(
+    () => (autoFillSingleFrameActive && squares.length === 1 ? printBorder : undefined),
+    [autoFillSingleFrameActive, printBorder, squares.length]
+  );
 
   const sortedSquares = useMemo(() => [...squares].sort((a, b) => a.order - b.order), [squares]);
   const criticalSlides = useMemo(
@@ -179,6 +190,12 @@ function App() {
     });
   }, [squares]);
 
+  useEffect(() => {
+    if (autoFillSingleFrameActive && squares.length !== 1) {
+      setAutoFillSingleFrameActive(false);
+    }
+  }, [autoFillSingleFrameActive, squares.length]);
+
   const toggleSelection = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -196,16 +213,16 @@ function App() {
     setIsExporting(true);
     try {
       if (exportFormat === 'images') {
-        await exportAsImages(image.element, squares, scaleFactor, image.file.name);
+        await exportAsImages(image.element, squares, scaleFactor, image.file.name, activePrintBorder);
       } else {
-        await exportAsZip(image.element, squares, scaleFactor, image.file.name);
+        await exportAsZip(image.element, squares, scaleFactor, image.file.name, activePrintBorder);
       }
     } catch (err) {
       console.error('Export failed:', err);
     } finally {
       setIsExporting(false);
     }
-  }, [exportFormat, image, squares, scaleFactor]);
+  }, [activePrintBorder, exportFormat, image, squares, scaleFactor]);
 
   const handleExport = useCallback(async () => {
     if (!image || squares.length === 0) return;
@@ -251,6 +268,8 @@ function App() {
     setMobilePanelExpanded(false);
     setMobileSelectionMode(false);
     setShowExportQualityModal(false);
+    setAutoFillSingleFrameActive(false);
+    setPrintBorder(DEFAULT_PRINT_BORDER_SETTINGS);
     resetImage();
   }, [resetImage, resetSquaresState]);
 
@@ -290,11 +309,13 @@ function App() {
   }, [clampSquaresToBounds, displaySize, rescaleSquaresToBounds]);
 
   const handleAddSquareCenter = useCallback(() => {
+    setAutoFillSingleFrameActive(false);
     addSquare(100, 100, 150);
   }, [addSquare]);
 
-  const handleAutoFill = useCallback((count: number) => {
+  const handleAutoFill = useCallback((config: AutoFillConfig) => {
     if (displaySize.width === 0 || displaySize.height === 0) return;
+    const { count } = config;
     clearAll();
     const size = Math.max(1, Math.floor(Math.min(displaySize.width / count, displaySize.height)));
     const totalWidth = size * count;
@@ -304,7 +325,18 @@ function App() {
       const x = Math.max(0, Math.min(displaySize.width - size, offsetX + i * size));
       addSquare(x, offsetY, size);
     }
+    if (count === 1) {
+      setAutoFillSingleFrameActive(true);
+      setPrintBorder(config.printBorder);
+      return;
+    }
+    setAutoFillSingleFrameActive(false);
   }, [displaySize, addSquare, clearAll]);
+
+  const handleClear = useCallback(() => {
+    setAutoFillSingleFrameActive(false);
+    clearAll();
+  }, [clearAll]);
 
   return (
     <div
@@ -343,6 +375,14 @@ function App() {
             qualityById={qualityReport.bySquareId}
             onEditGestureStart={beginGestureEdit}
             onEditGestureEnd={endGestureEdit}
+            printBorder={activePrintBorder}
+            canAdjustPrintBorder={autoFillSingleFrameActive && squares.length === 1}
+            onPrintBorderEnabledChange={(enabled) =>
+              setPrintBorder((prev) => ({ ...prev, enabled }))
+            }
+            onPrintBorderSizeChange={(sizePercent) =>
+              setPrintBorder((prev) => ({ ...prev, sizePercent }))
+            }
           />
 
           {/* Sidebar */}
@@ -396,6 +436,7 @@ function App() {
             </div>
             <div className="border-t border-border-2">
               <Toolbar
+                image={image}
                 squareCount={squares.length}
                 isExporting={isExporting}
                 exportFormat={exportFormat}
@@ -407,7 +448,7 @@ function App() {
                 onRedo={redo}
                 canUndo={canUndo}
                 canRedo={canRedo}
-                onClear={clearAll}
+                onClear={handleClear}
                 onNewImage={handleNewImage}
                 isMobileViewport={isMobileViewport}
                 isMobileSelectionMode={isMobileViewport && mobileSelectionMode}

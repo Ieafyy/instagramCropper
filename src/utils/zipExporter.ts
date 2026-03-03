@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { cropRegion } from './cropEngine';
-import type { CropSquare } from '../types';
+import type { CropSquare, PrintBorderSettings } from '../types';
 
 export type ExportFormat = 'zip' | 'images';
 
@@ -17,7 +17,8 @@ export async function exportAsZip(
   image: HTMLImageElement,
   squares: CropSquare[],
   scaleFactor: number,
-  originalFilename: string
+  originalFilename: string,
+  printBorder?: PrintBorderSettings
 ): Promise<void> {
   const zip = new JSZip();
   const sorted = getSortedSquares(squares);
@@ -28,7 +29,8 @@ export async function exportAsZip(
       image,
       sq.x * scaleFactor,
       sq.y * scaleFactor,
-      sq.size * scaleFactor
+      sq.size * scaleFactor,
+      printBorder
     );
     zip.file(`${i + 1}.png`, blob);
   }
@@ -42,7 +44,8 @@ export async function exportAsImages(
   image: HTMLImageElement,
   squares: CropSquare[],
   scaleFactor: number,
-  originalFilename: string
+  originalFilename: string,
+  printBorder?: PrintBorderSettings
 ): Promise<void> {
   const sorted = getSortedSquares(squares);
   const baseName = getBaseName(originalFilename);
@@ -54,7 +57,8 @@ export async function exportAsImages(
       image,
       sq.x * scaleFactor,
       sq.y * scaleFactor,
-      sq.size * scaleFactor
+      sq.size * scaleFactor,
+      printBorder
     );
     const slideNumber = String(i + 1).padStart(pad, '0');
     saveAs(blob, `${baseName}-${slideNumber}.png`);

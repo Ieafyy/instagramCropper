@@ -6,6 +6,11 @@ export interface CropSquare {
   order: number;
 }
 
+export interface PrintBorderSettings {
+  enabled: boolean;
+  sizePercent: number;
+}
+
 export interface LoadedImage {
   file: File;
   url: string;

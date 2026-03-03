@@ -1,21 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CropSquare, LoadedImage, QualityAnalysis } from '../types';
+import { drawCropToCanvas } from '../utils/cropEngine';
+import type { CropSquare, LoadedImage, PrintBorderSettings, QualityAnalysis } from '../types';
 
 interface CropPreviewProps {
   image: LoadedImage;
   squares: CropSquare[];
   qualityById: Record<string, QualityAnalysis>;
   scaleFactor: number;
+  printBorder?: PrintBorderSettings;
+  showPrintBorderControls: boolean;
+  onPrintBorderEnabledChange: (enabled: boolean) => void;
+  onPrintBorderSizeChange: (sizePercent: number) => void;
   selectedIds: Set<string>;
   onSelect: (id: string) => void;
 }
 
 const THUMB_SIZE = 72;
+const DETAIL_PREVIEW_SIZE = 156;
 
 function PreviewThumb({
   image,
   square,
   scaleFactor,
+  printBorder,
   quality,
   isSelected,
   onClick,
@@ -23,6 +30,7 @@ function PreviewThumb({
   image: LoadedImage;
   square: CropSquare;
   scaleFactor: number;
+  printBorder?: PrintBorderSettings;
   quality?: QualityAnalysis;
   isSelected: boolean;
   onClick: () => void;
@@ -40,12 +48,8 @@ function PreviewThumb({
     const cropSize = square.size * scaleFactor;
 
     ctx.clearRect(0, 0, THUMB_SIZE, THUMB_SIZE);
-    ctx.drawImage(
-      image.element,
-      cropX, cropY, cropSize, cropSize,
-      0, 0, THUMB_SIZE, THUMB_SIZE
-    );
-  }, [image, square.x, square.y, square.size, scaleFactor]);
+    drawCropToCanvas(ctx, image.element, cropX, cropY, cropSize, THUMB_SIZE, printBorder);
+  }, [image, printBorder, scaleFactor, square.x, square.y, square.size]);
 
   const qualityTitle = quality?.reasons[0] ?? 'Pending analysis';
   const hasAlert = quality?.level === 'warning' || quality?.level === 'critical';
@@ -95,11 +99,13 @@ function Lightbox({
   image,
   square,
   scaleFactor,
+  printBorder,
   onClose,
 }: {
   image: LoadedImage;
   square: CropSquare;
   scaleFactor: number;
+  printBorder?: PrintBorderSettings;
   onClose: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -122,12 +128,8 @@ function Lightbox({
     const cropSize = square.size * scaleFactor;
 
     ctx.clearRect(0, 0, renderSize, renderSize);
-    ctx.drawImage(
-      image.element,
-      cropX, cropY, cropSize, cropSize,
-      0, 0, renderSize, renderSize
-    );
-  }, [image, square, scaleFactor, renderSize]);
+    drawCropToCanvas(ctx, image.element, cropX, cropY, cropSize, renderSize, printBorder);
+  }, [image, printBorder, square, scaleFactor, renderSize]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -178,11 +180,130 @@ function Lightbox({
   );
 }
 
+function PrintBorderPanel({
+  image,
+  square,
+  scaleFactor,
+  printBorder,
+  onEnabledChange,
+  onSizeChange,
+}: {
+  image: LoadedImage;
+  square: CropSquare;
+  scaleFactor: number;
+  printBorder?: PrintBorderSettings;
+  onEnabledChange: (enabled: boolean) => void;
+  onSizeChange: (sizePercent: number) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const borderEnabled = printBorder?.enabled ?? false;
+  const borderSize = printBorder?.sizePercent ?? 8;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const cropX = square.x * scaleFactor;
+    const cropY = square.y * scaleFactor;
+    const cropSize = square.size * scaleFactor;
+
+    drawCropToCanvas(
+      ctx,
+      image.element,
+      cropX,
+      cropY,
+      cropSize,
+      DETAIL_PREVIEW_SIZE,
+      printBorder
+    );
+  }, [image, printBorder, scaleFactor, square.x, square.y, square.size]);
+
+  return (
+    <div className="mt-4 rounded-2xl border border-border-1 bg-surface-1/80 p-3 sm:p-4 shadow-[0_16px_40px_rgba(0,0,0,0.14)]">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center">
+        <div className="relative shrink-0 self-center md:self-start">
+          <div
+            className="absolute inset-0 scale-110 rounded-[28px] opacity-60 blur-2xl"
+            style={{
+              background: 'radial-gradient(circle, rgba(212, 160, 55, 0.18) 0%, transparent 72%)',
+            }}
+          />
+          <div className="relative rounded-[24px] bg-linear-to-br from-white via-[#faf8f4] to-[#ede6da] p-3 shadow-[0_18px_40px_rgba(0,0,0,0.28)]">
+            <canvas
+              ref={canvasRef}
+              width={DETAIL_PREVIEW_SIZE}
+              height={DETAIL_PREVIEW_SIZE}
+              className="block rounded-[16px] ring-1 ring-black/6"
+              style={{ width: DETAIL_PREVIEW_SIZE, height: DETAIL_PREVIEW_SIZE }}
+            />
+          </div>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] text-text-3 tracking-[0.28em] uppercase">Printed Border</p>
+              <h3 className="mt-1 text-sm font-medium text-text-1">Preview do export final</h3>
+              <p className="mt-1 max-w-sm text-[11px] leading-relaxed text-text-3">
+                A borda branca entra no PNG exportado e reduz a area util da foto para criar o efeito de impressao.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onEnabledChange(!borderEnabled)}
+              className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border transition-colors duration-200 ${
+                borderEnabled
+                  ? 'border-amber-glow/30 bg-amber-glow/90'
+                  : 'border-border-1 bg-surface-2'
+              }`}
+              aria-pressed={borderEnabled}
+              aria-label="Toggle printed border"
+            >
+              <span
+                className={`absolute top-0.5 h-[18px] w-[18px] rounded-full bg-white transition-all duration-200 ${
+                  borderEnabled ? 'left-[22px]' : 'left-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-[10px] text-text-3 tracking-[0.22em] uppercase">
+              <span>Border size</span>
+              <span>{borderSize}%</span>
+            </div>
+            <input
+              type="range"
+              min={3}
+              max={18}
+              step={1}
+              value={borderSize}
+              disabled={!borderEnabled}
+              onChange={(event) => onSizeChange(Number(event.target.value))}
+              className="mt-2 w-full accent-[var(--color-amber-glow)] disabled:cursor-default"
+            />
+            <div className="mt-2 flex items-center justify-between text-[10px] text-text-3/80">
+              <span>Photo area {Math.max(0, 100 - borderSize * 2)}%</span>
+              <span>{borderEnabled ? 'Border on' : 'Border off'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CropPreview({
   image,
   squares,
   qualityById,
   scaleFactor,
+  printBorder,
+  showPrintBorderControls,
+  onPrintBorderEnabledChange,
+  onPrintBorderSizeChange,
   selectedIds,
   onSelect,
 }: CropPreviewProps) {
@@ -201,6 +322,7 @@ export function CropPreview({
 
   const sorted = [...squares].sort((a, b) => a.order - b.order);
   const lightboxSquare = lightboxId ? squares.find((s) => s.id === lightboxId) : null;
+  const framedSquare = showPrintBorderControls && sorted.length === 1 ? sorted[0] : null;
 
   return (
     <>
@@ -213,6 +335,7 @@ export function CropPreview({
               image={image}
               square={sq}
               scaleFactor={scaleFactor}
+              printBorder={printBorder}
               quality={qualityById[sq.id]}
               isSelected={selectedIds.has(sq.id)}
               onClick={() => handleThumbClick(sq.id)}
@@ -221,11 +344,23 @@ export function CropPreview({
         </div>
       </div>
 
+      {framedSquare && (
+        <PrintBorderPanel
+          image={image}
+          square={framedSquare}
+          scaleFactor={scaleFactor}
+          printBorder={printBorder}
+          onEnabledChange={onPrintBorderEnabledChange}
+          onSizeChange={onPrintBorderSizeChange}
+        />
+      )}
+
       {lightboxSquare && (
         <Lightbox
           image={image}
           square={lightboxSquare}
           scaleFactor={scaleFactor}
+          printBorder={printBorder}
           onClose={closeLightbox}
         />
       )}

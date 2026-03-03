@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CropSquare } from './CropSquare';
 import { CropPreview } from './CropPreview';
-import type { CropSquare as CropSquareType, LoadedImage, QualityAnalysis } from '../types';
+import type {
+  CropSquare as CropSquareType,
+  LoadedImage,
+  PrintBorderSettings,
+  QualityAnalysis,
+} from '../types';
 
 interface ImageWorkspaceProps {
   image: LoadedImage;
@@ -20,6 +25,10 @@ interface ImageWorkspaceProps {
   qualityById: Record<string, QualityAnalysis>;
   onEditGestureStart: () => void;
   onEditGestureEnd: () => void;
+  printBorder?: PrintBorderSettings;
+  canAdjustPrintBorder: boolean;
+  onPrintBorderEnabledChange: (enabled: boolean) => void;
+  onPrintBorderSizeChange: (sizePercent: number) => void;
 }
 
 const MAX_DISPLAY_WIDTH = 900;
@@ -42,6 +51,10 @@ export function ImageWorkspace({
   qualityById,
   onEditGestureStart,
   onEditGestureEnd,
+  printBorder,
+  canAdjustPrintBorder,
+  onPrintBorderEnabledChange,
+  onPrintBorderSizeChange,
 }: ImageWorkspaceProps) {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -303,6 +316,10 @@ export function ImageWorkspace({
           squares={squares}
           qualityById={qualityById}
           scaleFactor={scaleFactor}
+          printBorder={printBorder}
+          showPrintBorderControls={canAdjustPrintBorder}
+          onPrintBorderEnabledChange={onPrintBorderEnabledChange}
+          onPrintBorderSizeChange={onPrintBorderSizeChange}
           selectedIds={selectedIds}
           onSelect={(id) => {
             if (isMobileViewport && isMobileSelectionMode) {
