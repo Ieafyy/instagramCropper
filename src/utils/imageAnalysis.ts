@@ -1,5 +1,6 @@
 import type {
   CropSquare,
+  HistogramData,
   QualityAnalysis,
   ResolutionMetrics,
 } from '../types.js';
@@ -154,7 +155,10 @@ function analyzeFromImageData(
   const { data, width, height } = imageData;
   const totalPixels = width * height;
 
-  const histogram = new Uint32Array(256);
+  const histLuma = new Uint32Array(256);
+  const histR = new Uint32Array(256);
+  const histG = new Uint32Array(256);
+  const histB = new Uint32Array(256);
   const grayscale = new Float32Array(totalPixels);
 
   let overexposed = 0;
@@ -169,7 +173,10 @@ function analyzeFromImageData(
     const luminance = LUMA_R * r + LUMA_G * g + LUMA_B * b;
 
     grayscale[pixelIndex] = luminance;
-    histogram[Math.round(clamp(luminance, 0, 255))]++;
+    histLuma[Math.round(clamp(luminance, 0, 255))]++;
+    histR[r]++;
+    histG[g]++;
+    histB[b]++;
 
     if (luminance >= 245) overexposed++;
     if (r >= 250 || g >= 250 || b >= 250) clippedHighlights++;
@@ -178,12 +185,14 @@ function analyzeFromImageData(
     pixelIndex++;
   }
 
+  const histogram: HistogramData = { r: histR, g: histG, b: histB, luma: histLuma };
+
   const overexposedPct = (overexposed / totalPixels) * 100;
   const clippedHighlightsPct = (clippedHighlights / totalPixels) * 100;
   const underexposedPct = (underexposed / totalPixels) * 100;
 
-  const p5 = quantileFromHistogram(histogram, totalPixels, 0.05);
-  const p95 = quantileFromHistogram(histogram, totalPixels, 0.95);
+  const p5 = quantileFromHistogram(histLuma, totalPixels, 0.05);
+  const p95 = quantileFromHistogram(histLuma, totalPixels, 0.95);
   const dynamicRangeNorm = (p95 - p5) / 255;
   const laplacianVariance = computeLaplacianVariance(grayscale, width, height);
 
@@ -250,6 +259,7 @@ function analyzeFromImageData(
       laplacianVariance,
     },
     resolution,
+    histogram,
   };
 }
 

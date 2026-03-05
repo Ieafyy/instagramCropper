@@ -42,6 +42,13 @@ export interface ResolutionMetrics {
   upsampleRatio: number;
 }
 
+export interface HistogramData {
+  r: Uint32Array;
+  g: Uint32Array;
+  b: Uint32Array;
+  luma: Uint32Array;
+}
+
 export interface QualityAnalysis {
   level: QualityLevel;
   score: number;
@@ -50,6 +57,7 @@ export interface QualityAnalysis {
   contrast: ContrastMetrics;
   sharpness: SharpnessMetrics;
   resolution?: ResolutionMetrics;
+  histogram: HistogramData;
 }
 
 export interface ImageQualityReport {

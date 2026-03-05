@@ -1,4 +1,5 @@
 import type { QualityAnalysis } from '../types';
+import { HistogramPanel } from './HistogramPanel';
 
 interface QualityPanelProps {
   globalQuality: QualityAnalysis | null;
@@ -58,6 +59,12 @@ export function QualityPanel({
               {quality.level}
             </span>
           </div>
+
+          <HistogramPanel
+            histogram={quality.histogram}
+            p5={quality.contrast.p5}
+            p95={quality.contrast.p95}
+          />
 
           <div className="grid grid-cols-2 gap-1.5 mt-3">
             <div className="rounded border border-border-2 bg-surface-1/60 px-2 py-1.5">
