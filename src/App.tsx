@@ -5,6 +5,7 @@ import { SquareList } from './components/SquareList';
 import { Toolbar, type AutoFillConfig } from './components/Toolbar';
 import { QualityPanel } from './components/QualityPanel';
 import { ExportQualityModal } from './components/ExportQualityModal';
+import { CarouselPreviewModal } from './components/CarouselPreviewModal';
 import { LandingIntro } from './components/LandingIntro';
 import { useImageLoader } from './hooks/useImageLoader';
 import { useCropSquares } from './hooks/useCropSquares';
@@ -73,6 +74,7 @@ function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('zip');
   const [showExportQualityModal, setShowExportQualityModal] = useState(false);
+  const [showCarouselPreview, setShowCarouselPreview] = useState(false);
   const [autoFillSingleFrameActive, setAutoFillSingleFrameActive] = useState(false);
   const [printBorder, setPrintBorder] = useState<PrintBorderSettings>(DEFAULT_PRINT_BORDER_SETTINGS);
   const previousDisplaySizeRef = useRef<{ width: number; height: number } | null>(null);
@@ -444,6 +446,7 @@ function App() {
                 onAutoFill={handleAutoFill}
                 onExport={handleExport}
                 onExportFormatChange={setExportFormat}
+                onPreviewCarousel={() => setShowCarouselPreview(true)}
                 onUndo={undo}
                 onRedo={redo}
                 canUndo={canUndo}
@@ -458,6 +461,16 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {showCarouselPreview && image && squares.length > 0 && (
+        <CarouselPreviewModal
+          image={image}
+          squares={squares}
+          scaleFactor={scaleFactor}
+          printBorder={activePrintBorder}
+          onClose={() => setShowCarouselPreview(false)}
+        />
       )}
 
       <ExportQualityModal

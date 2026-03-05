@@ -23,6 +23,7 @@ interface ToolbarProps {
   onAutoFill: (config: AutoFillConfig) => void;
   onExport: () => void;
   onExportFormatChange: (format: ExportFormat) => void;
+  onPreviewCarousel: () => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -237,6 +238,7 @@ export function Toolbar({
   onAutoFill,
   onExport,
   onExportFormatChange,
+  onPreviewCarousel,
   onUndo,
   onRedo,
   canUndo,
@@ -292,6 +294,17 @@ export function Toolbar({
       <div className="p-2.5 sm:p-3 space-y-2">
         {/* Primary actions */}
         <div className="flex gap-2">
+          <button
+            onClick={onPreviewCarousel}
+            disabled={squareCount === 0}
+            className="min-h-10 sm:min-h-9 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md border border-border-1 text-text-2 text-xs font-medium tracking-wide hover:border-amber-glow/20 hover:text-text-1 hover:bg-amber-dim disabled:opacity-25 disabled:cursor-default transition-all duration-200"
+            title="Preview do carrossel"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+          </button>
+
           <div ref={dropdownRef} className="relative flex-1">
             <button
               onClick={() => setDropdownOpen((prev) => !prev)}
