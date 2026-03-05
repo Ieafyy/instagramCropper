@@ -188,11 +188,12 @@ export function CarouselPreviewModal({ image, squares, scaleFactor, printBorder,
             width: '100%',
             aspectRatio: '1 / 1',
             cursor: total > 1 ? (isDragging.current ? 'grabbing' : 'grab') : 'default',
+            touchAction: 'none',
           }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+          onPointerCancel={() => { isDragging.current = false; setIsSnapping(true); setDragOffset(0); }}
         >
           {/* Track — all slides side by side */}
           <div
